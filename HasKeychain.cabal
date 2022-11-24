@@ -16,8 +16,8 @@ license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
-    README.md
-    CHANGELOG.md
+  README.md
+  CHANGELOG.md
 
 source-repository head
   type: git
@@ -25,37 +25,44 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
+    Lib
+    Tui
   other-modules:
-      Paths_HasKeychain
+    Paths_HasKeychain
   hs-source-dirs:
-      src
+    src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      base >=4.7 && <5
+    base >=4.7 && <5,
+    brick,
+    vty
   default-language: Haskell2010
 
 executable HasKeychain-exe
   main-is: Main.hs
-  other-modules:
-      Paths_HasKeychain
-  hs-source-dirs:
-      app
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      HasKeychain
-    , base >=4.7 && <5
+    HasKeychain,
+    base >=4.7 && <5,
+    brick,
+    vty
+  hs-source-dirs:
+    app
+  other-modules:
+    Paths_HasKeychain
   default-language: Haskell2010
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
 
 test-suite HasKeychain-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_HasKeychain
+    Paths_HasKeychain
   hs-source-dirs:
-      test
+    test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      HasKeychain
-    , base >=4.7 && <5
+    HasKeychain,
+    base >=4.7 && <5,
+    brick,
+    vty
   default-language: Haskell2010
