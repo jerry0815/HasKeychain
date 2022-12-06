@@ -23,6 +23,10 @@ dependencies:
 - base >= 4.7 && < 5
 - brick
 - vty
+- text
+- microlens
+- microlens-th
+- microlens-mtl
 
 
 ghc-options:
