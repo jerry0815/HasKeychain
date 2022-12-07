@@ -152,8 +152,8 @@ drawHelpCmd st =
 
 drawSearch :: TuiState -> Bool -> Widget ResourceName
 drawSearch st flg = if not flg
-                        then hLimit 50 $ border (str "Input 1 (20 words): " <+> e1)
-                        else hLimit 50 $ border $ ((withAttr "selected" $ ((str "Input 1 (20 words): ") <+> e1)))
+                        then hLimit 50 $ border (padRight Max (str "Search: " <+> e1))
+                        else hLimit 50 $ border  (padRight Max (withAttr "selected" $ ((str "Search: ") <+> e1)))
     where
         e1 = str (padString ' ' 30 input)
         input = unpack (rebuildTextFieldCursor (st ^. stateCursor))
@@ -182,7 +182,7 @@ drawTypingAccount st = vCenter $ padLeft (Pad 28) content <=> hCenter help
 
 
 drawFocusPassData :: T.Text -> T.Text -> T.Text  -> Widget ResourceName
-drawFocusPassData website username pass =   padRight (Pad 5) (padBottom (Pad 1) ((str "Name: " <+> txt website)) 
+drawFocusPassData website username pass =   padLeft (Pad 12) (padBottom (Pad 1) ((str "Name: " <+> txt website)) 
                                             <=> padBottom (Pad 1) ((str "Account: " <+> txt username)) 
                                             <=> (str "Password: " <+> txt pass))
 
@@ -207,8 +207,8 @@ drawTui ts = drawResult
                             2 -> [drawTypingName ts] 
                             3 -> [drawTypingAccount ts]
                             _ -> case ts^.focusItem of
-                                    Just item   -> [borderWithLabel (str "KeyChain") $ box <+> ((center (drawFocusPassData (item^.name) (item^.account) (item^.password))) <=> hBorder <=> (center  (drawHelpCmd ts)))]
-                                    Nothing     -> [borderWithLabel (str "KeyChain") $ box <+> ((center (drawFocusPassData "" "" "")) <=> hBorder <=> (center  (drawHelpCmd ts)))]
+                                    Just item   -> [borderWithLabel (str "KeyChain") $ box <+> ((vCenter (drawFocusPassData (item^.name) (item^.account) (item^.password))) <=> (center  (drawHelpCmd ts)))]
+                                    Nothing     -> [borderWithLabel (str "KeyChain") $ box <+> ((vCenter (drawFocusPassData "" "" "")) <=> (center  (drawHelpCmd ts)))]
             nec = ts^.tuiStatePaths
             box = border (drawSearch ts flg) <=> pathData nec
                 <+> vBorder
@@ -408,7 +408,7 @@ mainApp =
 
 tui :: IO()
 tui = do 
-    putStr "123"
+    -- putStr "123"
     initState <- buildInitState
     endState <- defaultMain mainApp initState
     return ()
