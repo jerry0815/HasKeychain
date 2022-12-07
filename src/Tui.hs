@@ -52,16 +52,11 @@ data ResourceName = String
                     deriving (Show, Eq, Ord)
 
 
-
-
 data PassData =
     PassData { _name      :: T.Text
              , _account   :: T.Text
              , _password  :: T.Text
              }
-
-makeLenses ''PassData
-
 
 
 data TuiState = TuiState {  _tuiStatePaths :: !(NonEmptyCursor PassData) -- cursor for each password
@@ -73,6 +68,8 @@ data TuiState = TuiState {  _tuiStatePaths :: !(NonEmptyCursor PassData) -- curs
                             , _typingAccount :: T.Text -- account of new insert record
                             , _windowH :: !Int -- the height of terminal
                             } 
+
+makeLenses ''PassData
 
 makeLenses ''TuiState
 
@@ -186,12 +183,14 @@ drawTui ts = drawResult
                             2 -> [drawTypingName ts] 
                             3 -> [drawTypingAccount ts]
                             _ -> case ts^.focusItem of
-                                    Just item   -> [borderWithLabel (str "KeyChain") $ box <+> ((vCenter (drawFocusPassData (item^.name) (item^.account) (item^.password))) <=> (center  (drawHelpCmd ts)))]
-                                    Nothing     -> [borderWithLabel (str "KeyChain") $ box <+> ((vCenter (drawFocusPassData "" "" "")) <=> (center  (drawHelpCmd ts)))]
+                                    Just item   -> [borderWithLabel (str "KeyChain") $ box <+> 
+                                                    ((vCenter (drawFocusPassData (item^.name) (item^.account) (item^.password))) <=> (center  (drawHelpCmd ts)))]
+                                    Nothing     -> [borderWithLabel (str "KeyChain") $ box <+> 
+                                                    ((vCenter (drawFocusPassData "" "" "")) <=> (center  (drawHelpCmd ts)))]
             nec = ts^.tuiStatePaths
             box = border (drawSearch ts (ts^.eventState == 1)) <=> pathData nec
                 <+> vBorder
-            fileLen nec = (length (nonEmptyCursorPrev nec) + length (nonEmptyCursorNext nec) + 1)*4
+
             prevFile nec = take (div (ts^.windowH-9) 4) $ (nonEmptyCursorPrev nec)
             pathData nec    = ( vBox $ concat
                             [  map (drawPath False) $ reverse $ (prevFile nec)
