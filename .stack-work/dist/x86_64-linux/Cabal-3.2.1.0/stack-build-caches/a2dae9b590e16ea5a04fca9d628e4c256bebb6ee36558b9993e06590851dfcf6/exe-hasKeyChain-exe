@@ -1,0 +1,10 @@
+/mnt/c/jerry/ucsd/230/HasKeychain/README.md:
+  hash: 4699dbc9330a9c5c64e1e7ca45764f59ba3f8b2916622c3c1c3f2f930e4575d1
+/mnt/c/jerry/ucsd/230/HasKeychain/haskeychain.cabal:
+  hash: cc8b0d9cf9aa63f0b8b6bf017b8ad137a382eb8e98d06bc9596a6b249401714f
+/mnt/c/jerry/ucsd/230/HasKeychain/src/Main.hs:
+  hash: 8e289d03c8d0d26a59bdd00859041a2e9ed833c25dcf7c4e08ba3adc1ab99edf
+/mnt/c/jerry/ucsd/230/HasKeychain/src/Password.hs:
+  hash: fbd1f3f0759e8609bf040471f489a6b814e26214cfd84067c4b5854f4347d117
+/mnt/c/jerry/ucsd/230/HasKeychain/src/Tui.hs:
+  hash: ce1d3bcb0497afeb963a4441c814497fde66247cfc4de45b02ec9a33e549d96a

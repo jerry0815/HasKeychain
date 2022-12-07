@@ -1,6 +1,6 @@
 module Main (main) where
-
-import Test
+    
+import Tui (tui)
 
 main :: IO ()
-main = test
+main = tui
