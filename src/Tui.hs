@@ -180,18 +180,20 @@ drawTui :: TuiState -> [Widget ResourceName]
 drawTui ts = drawResult
         where 
             drawResult = case ts^.eventState of
-                            2 -> [drawTypingName ts] 
-                            3 -> [drawTypingAccount ts]
-                            _ -> case ts^.focusItem of
+                            2 -> [drawTypingName ts] -- user inserting name page
+                            3 -> [drawTypingAccount ts] -- user inserting account page
+                            _ -> case ts^.focusItem of -- noraml page
                                     Just item   -> [borderWithLabel (str "KeyChain") $ box <+> 
                                                     ((vCenter (drawFocusPassData (item^.name) (item^.account) (item^.password))) <=> (center  (drawHelpCmd ts)))]
                                     Nothing     -> [borderWithLabel (str "KeyChain") $ box <+> 
                                                     ((vCenter (drawFocusPassData "" "" "")) <=> (center  (drawHelpCmd ts)))]
             nec = ts^.tuiStatePaths
+            -- showing password and searching bar
             box = border (drawSearch ts (ts^.eventState == 1)) <=> pathData nec
-                <+> vBorder
+                <+> vBorder 
 
             prevFile nec = take (div (ts^.windowH-9) 4) $ (nonEmptyCursorPrev nec)
+            -- showing focus password item
             pathData nec    = ( vBox $ concat
                             [  map (drawPath False) $ reverse $ (prevFile nec)
                             , [drawPath (ts^.eventState == 0) $ nonEmptyCursorCurrent nec]
