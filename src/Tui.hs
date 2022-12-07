@@ -122,6 +122,7 @@ drawHelpCmd st =
                     hCenter $ txt "Up/Down: select"
                     , hCenter $ txt "Esc: quit program"
                     , hCenter $ txt "i: create password"
+                    , hCenter $ txt "r: reset"
                     , hCenter $ txt "/: search, Esc: cancel search"
                     , hCenter $ txt "Enter: browse password of website"
                     ])
@@ -210,14 +211,13 @@ drawTui ts = drawResult
                                     Just item   -> [borderWithLabel (str "KeyChain") $ box <+> ((vCenter (drawFocusPassData (item^.name) (item^.account) (item^.password))) <=> (center  (drawHelpCmd ts)))]
                                     Nothing     -> [borderWithLabel (str "KeyChain") $ box <+> ((vCenter (drawFocusPassData "" "" "")) <=> (center  (drawHelpCmd ts)))]
             nec = ts^.tuiStatePaths
-            box = border (drawSearch ts flg) <=> pathData nec
+            box = border (drawSearch ts (ts^.eventState == 1)) <=> pathData nec
                 <+> vBorder
             fileLen nec = (length (nonEmptyCursorPrev nec) + length (nonEmptyCursorNext nec) + 1)*4
             prevFile nec = take (div (ts^.windowH-9) 4) $ (nonEmptyCursorPrev nec)
-            flg = ts^.eventState >= 1
             pathData nec    = ( vBox $ concat
                             [  map (drawPath False) $ reverse $ (prevFile nec)
-                            , [drawPath (not flg) $ nonEmptyCursorCurrent nec]
+                            , [drawPath (ts^.eventState == 0) $ nonEmptyCursorCurrent nec]
                             , map (drawPath False) $ nonEmptyCursorNext nec])
         -- let nec = ts^.tuiStatePaths
     --     in  [   borderWithLabel (str "KeyChain") $
@@ -286,6 +286,9 @@ handleKeyPress st ev (key, ms) = resultEvent
                             continue st'
                         EvKey (KChar 'i') [] -> do
                             let st' = st & eventState .~ 2
+                            continue st'
+                        EvKey (KChar 'r') [] -> do 
+                            st' <- liftIO buildInitState
                             continue st'
                         
                         _ -> continue st
