@@ -30,7 +30,8 @@ executable haskeychain-exe
                        lens,
                        text,
                        tuple,
-                       terminal-size
+                       terminal-size,
+                       strict
   hs-source-dirs:      src
   other-modules:       Tui,
                        Password
