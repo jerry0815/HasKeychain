@@ -8,11 +8,9 @@ import System.Directory
 import Control.Monad
 import Control.Monad.IO.Class
 import Cursor.Simple.List.NonEmpty
-import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import System.Exit
 import System.Console.Terminal.Size
-import Data.Tuple.Select
 import Data.Text (unpack)
 import Data.Maybe
 import qualified Data.List as L
@@ -30,6 +28,8 @@ import Cursor.TextField
 import Cursor.Brick.TextField
 import qualified Brick.Widgets.Edit as E
 import Control.Lens ( (^.), (%=), (&), (.~), makeLenses, Zoom(zoom) )
+import Brick.Forms
+import qualified Data.Text as T
 
 
 -- ui :: Widget ()
@@ -43,13 +43,22 @@ import Control.Lens ( (^.), (%=), (&), (.~), makeLenses, Zoom(zoom) )
 
 
 
-
-
 data ResourceName = String
                     | ResourceName
+                    | NameField
+                    | AccountField
+                    | PasswordField
                     deriving (Show, Eq, Ord)
 type PassWord = [Char]
-type PassData = (String, String, PassWord)
+-- type PassData = (String, String, PassWord)
+
+data PassData =
+    PassData { _name      :: T.Text
+             , _account   :: T.Text
+             , _password  :: T.Text
+             }
+makeLenses ''PassData
+
 data POC
     = File FilePath
     | Directory FilePath
@@ -59,9 +68,12 @@ data POC
 
 data TestState = TestState {  _testStatePaths :: !(NonEmptyCursor POC)
                             , _stateCursor :: TextFieldCursor
-                            , _searchingState :: !Bool
+                            , _searchingState :: !Int
                             , _inputString :: String
                             , _windowH :: Int
+                            , _typingName :: T.Text
+                            , _typingAccount :: T.Text
+                            , _allPassData :: [PassData]
                             }
 
 makeLenses ''TestState
@@ -88,16 +100,19 @@ buildInitState = do
         Nothing -> die "There are no contents"
         Just ne -> pure TestState { _testStatePaths = makeNonEmptyCursor ne
                                   , _stateCursor = makeTextFieldCursor ""
-                                  , _searchingState = False
+                                  , _searchingState = 2 -- 0: not search 1: search 2: typename 2: typeaccount
                                   , _inputString = ""
-                                  , _windowH = h}
+                                  , _windowH = h
+                                  , _typingName = ""
+                                  , _typingAccount = ""
+                                  , _allPassData = []}
 
 
 
 
 
-drawSearch :: TestState -> Bool -> Widget ResourceName
-drawSearch st flg = if not flg
+drawSearch :: TestState -> Int -> Widget ResourceName
+drawSearch st flg = if flg == 0
                         then hCenter $ padRight Max (str "Input 1 (20 words): " <+> e1)
                         else hCenter $ withAttr "selected" $ (padRight Max (str "Input 1 (20 words): " <+> e1))
     where
@@ -125,58 +140,106 @@ padString c n xs
 
 drawPassData :: [PassData] -> Widget ResourceName
 drawPassData  [] = emptyWidget
-drawPassData  (item:items) =  border (padRight Max (str ("Name:    " ++ website) <=> str ("Account: " ++ username))) <=> drawPassData items
+drawPassData  (item:items) =  border (padRight Max ((str "Name:    " <+> txt curname) <=> (str "Account: " <+> txt curaccount))) <=> drawPassData items
     where
-        website = sel1 item
-        username = sel2 item
+        curname = item^.name
+        curaccount = item^.account
 
 drawFocusPassData :: PassData -> Widget ResourceName
-drawFocusPassData item = padRight (Pad 5) (padBottom (Pad 1) (str ("Name: " ++ website)) <=> padBottom (Pad 1) (str ("Account: " ++ username)) <=> str ("Password: " ++ password))
+drawFocusPassData item = padRight (Pad 5) (padBottom (Pad 1) ((str "Name: " <+> txt website)) <=> padBottom (Pad 1) ((str "Account: " <+> txt username)) <=> (str "Password: " <+> txt pass))
     where
-        website = sel1 item
-        username = sel2 item
-        password = sel3 item
+        website = item^.name
+        username = item^.account
+        pass = item^.password
 
 drawManual :: Int -> Widget ResourceName
 drawManual 0 = str "search"
 drawManual 1 = str "password"
 drawManual _ = str "other"
 
---ts^.windowH-1
+
+
+drawAdd :: Form PassData e ResourceName -> [Widget ResourceName]
+drawAdd f = []
+    where
+        form = border $ padTop (Pad 1) $ hLimit 50 $ renderForm f
+        help = padTop (Pad 1) $ borderWithLabel (str "Help") body
+        body = str $ "- Name is free-form text\n" <>
+                     "- Age must be an integer (try entering an\n" <>
+                     "  invalid age!)\n" <>
+                     "- Handedness selects from a list of options\n" <>
+                     "- The last option is a checkbox\n" <>
+                     "- Enter/Esc quit, mouse interacts with fields"
+
+
+drawTypingName :: TestState -> Widget ResourceName
+drawTypingName st = vCenter $ padLeft (Pad 28) content <=> hCenter help
+    where
+        e1 = selectedTextFieldCursorWidget ResourceName  (st^.stateCursor)
+        content =  str "This password is for: " <+> e1
+        help = padTop (Pad 1) $ borderWithLabel (str "Help") body
+        body = str $ "- Name is free-form text\n" <>
+                     "- Age must be an integer (try entering an\n" <>
+                     "  invalid age!)\n" <>
+                     "- Handedness selects from a list of options\n" <>
+                     "- The last option is a checkbox\n" <>
+                     "- Enter/Esc quit, mouse interacts with fields"
+
+drawTypingAccount :: TestState -> Widget ResourceName
+drawTypingAccount st = vCenter $ padLeft (Pad 28) content <=> hCenter help
+    where
+        e1 = selectedTextFieldCursorWidget ResourceName  (st^.stateCursor)
+        content = str "Account: " <+> e1
+        help = padTop (Pad 1) $ borderWithLabel (str "Help") body
+        body = str $ "- Name is free-form text\n" <>
+                     "- Age must be an integer (try entering an\n" <>
+                     "  invalid age!)\n" <>
+                     "- Handedness selects from a list of options\n" <>
+                     "- The last option is a checkbox\n" <>
+                     "- Enter/Esc quit, mouse interacts with fields"
 drawTest :: TestState -> [Widget ResourceName]
-drawTest ts =
-    let nec = ts^.testStatePaths
-        in  [   box
-            ]
+drawTest ts = 
+    case ts^.searchingState of
+        0 -> [box]
+        1 -> [box]
+        2 -> [drawTypingName ts]
+        3 -> [drawTypingAccount ts]
+        -- 4 -> [receivePassword]
+
     where
         nec = ts^.testStatePaths
         fileLen nec = length (nonEmptyCursorPrev nec) + length (nonEmptyCursorNext nec) + 1
         prevFile nec = take (ts^.windowH-3) $ (nonEmptyCursorPrev nec)
         flg = ts^.searchingState
-        sample = [("google", "asdalkj", "asd"), ("apple", "123das", "sad")]
+        sample = [ PassData { _name = "google"
+                                  , _account = "123"
+                                  , _password = "123"},
+                   PassData { _name = "apple"
+                                  , _account = "345"
+                                  , _password = "345"}]
         ori = hCenter $ border $
                 (
                 hCenter $
                 padBottom (Pad ((ts^.windowH-2) - (fileLen nec)))(
                 vBox $ concat
-                    [  map (drawPath False) $ reverse $ (prevFile nec)--take 3 $ (nonEmptyCursorPrev nec)
-                    , [drawPath (not flg) $ nonEmptyCursorCurrent nec]
-                    , map (drawPath False) $ nonEmptyCursorNext nec]
+                    [  map (drawPath 0) $ reverse $ (prevFile nec)--take 3 $ (nonEmptyCursorPrev nec)
+                    , [drawPath (1) $ nonEmptyCursorCurrent nec]
+                    , map (drawPath 0) $ nonEmptyCursorNext nec]
                 ))
                 <+> (drawSearch ts flg)
                 <+> ((hCenter (padLeftRight 7 (str "Result")))
                 <=> (hCenter (padLeftRight (div (20- length (ts^.inputString)) 2) (str (ts^.inputString)))))
 
         box = borderWithLabel (str "KeyChain")
-         $ border (drawSearch ts flg) <=> drawPassData sample
+         $ border (drawSearch ts flg) <=> drawPassData (ts^.allPassData)
          <+> vBorder
-         <+> ((center (drawFocusPassData (head sample)))  <=> hBorder <=> (center  (drawManual 0)))
+         <+> ((center (drawFocusPassData (head (ts^.allPassData))))  <=> hBorder <=> (center  (drawManual 0)))
 
 
 
-drawPath :: Bool -> POC -> Widget n
+drawPath :: Int -> POC -> Widget n
 drawPath b poc =
-        (if b
+        (if b == 1
             then forceAttr "selected"
             else id) $
         case poc of
@@ -184,15 +247,68 @@ drawPath b poc =
             Directory fp -> padRight (Pad (30 - length fp)) $ withAttr "directory" $ str fp
 
 
-handleEvent :: TestState -> BrickEvent n e -> EventM n (Next TestState)
+handleEvent :: TestState -> BrickEvent ResourceName e -> EventM ResourceName (Next TestState)
 handleEvent st ev =
-    case ev of
-        VtyEvent (EvKey k ms) -> handleKeyPress st ev (k,ms)
+    case st ^. searchingState of
+        0 -> case ev of
+            VtyEvent (EvKey k ms) -> handleKeyPress st ev (k,ms)
+            _ -> continue st
+        1 -> case ev of
+            VtyEvent (EvKey k ms) -> handleKeyPress st ev (k,ms)
+            _ -> continue st
+        2 -> case ev of
+            VtyEvent (EvKey k ms) -> case k of
+                KEsc -> do
+                    let st' = st & stateCursor .~ (makeTextFieldCursor "") & searchingState .~ 0
+                    continue st'
+                KBS -> do
+                    let tfc = st^.stateCursor
+                    let tfc' = fromMaybe tfc $ (dullMDelete . textFieldCursorRemove) tfc
+                    let st' = st & stateCursor .~ tfc'
+                    continue st' 
+                KEnter -> do
+                    let st' = st & typingName .~ ( rebuildTextFieldCursor (st ^. stateCursor)) & stateCursor .~ (makeTextFieldCursor "") & searchingState .~ 3
+                    continue st'
+                (KChar c) -> do
+                    let tfc = st^.stateCursor
+                    let tfc' = fromMaybe tfc $ (textFieldCursorInsertChar c . Just) tfc
+                    let st' = st & stateCursor .~ tfc'
+                    continue st'
+                _      -> continue st
+            _ -> continue st
+        3 -> case ev of
+            VtyEvent (EvKey k ms) -> case k of
+                KEsc -> do
+                    let st' = st & stateCursor .~ (makeTextFieldCursor "") & searchingState .~ 0
+                    continue st'
+                KBS -> do
+                    let tfc = st^.stateCursor
+                    let tfc' = fromMaybe tfc $ (dullMDelete . textFieldCursorRemove) tfc
+                    let st' = st & stateCursor .~ tfc'
+                    continue st' 
+                KEnter -> do
+                    let st' = st & typingAccount .~ ( rebuildTextFieldCursor (st ^. stateCursor)) & stateCursor .~ (makeTextFieldCursor "") & searchingState .~ 0
+                    let curAllPassData = st^.allPassData
+                    let newData = PassData { _name = st'^.typingName
+                                  , _account = st'^.typingAccount
+                                  , _password = "TODO"}
+                    let newAllPassData = curAllPassData ++ [newData]
+                    let st'' = st' & allPassData .~ newAllPassData
+                    continue st''
+                (KChar c) -> do
+                    let tfc = st^.stateCursor
+                    let tfc' = fromMaybe tfc $ (textFieldCursorInsertChar c . Just) tfc
+                    let st' = st & stateCursor .~ tfc'
+                    continue st'
+                _      -> continue st
+            _ -> continue st
         _ -> continue st
+        
+
 
 handleKeyPress :: TestState -> BrickEvent n e -> (Key, [Modifier]) -> EventM n (Next TestState)
 handleKeyPress st ev (key, ms) =
-    if st ^. searchingState
+    if st ^. searchingState == 1
         then handleSearch st ev
         else handleNormal st ev
 
@@ -221,7 +337,7 @@ handleKeyPress st ev (key, ms) =
                                     s' <- liftIO buildInitState
                                     continue s'
                         EvKey KRight [] -> do
-                            let st' = st & searchingState .~ True
+                            let st' = st & searchingState .~ 1
                             continue st'
                         _ -> continue st
                 _ -> continue st
@@ -234,7 +350,7 @@ handleKeyPress st ev (key, ms) =
                     continue st'
             in case key of
                 KLeft  -> do
-                            let st' = st & searchingState .~ False  & stateCursor .~ (makeTextFieldCursor "")
+                            let st' = st & searchingState .~ 0  & stateCursor .~ (makeTextFieldCursor "")
                             continue st'
                 KEnter -> do
                             let st' = st & inputString .~ (unpack (rebuildTextFieldCursor (st ^. stateCursor))) & stateCursor .~ (makeTextFieldCursor "")
