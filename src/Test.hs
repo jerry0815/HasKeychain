@@ -12,7 +12,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import System.Exit
 import System.Console.Terminal.Size
-
+import Data.Tuple.Select
 import Data.Text (unpack)
 import Data.Maybe
 import qualified Data.List as L
@@ -48,9 +48,9 @@ import Control.Lens ( (^.), (%=), (&), (.~), makeLenses, Zoom(zoom) )
 data ResourceName = String
                     | ResourceName
                     deriving (Show, Eq, Ord)
-
-
-data POC 
+type PassWord = [Char]
+type PassData = (String, String, PassWord)
+data POC
     = File FilePath
     | Directory FilePath
     deriving (Show, Eq)
@@ -62,7 +62,7 @@ data TestState = TestState {  _testStatePaths :: !(NonEmptyCursor POC)
                             , _searchingState :: !Bool
                             , _inputString :: String
                             , _windowH :: Int
-                            } 
+                            }
 
 makeLenses ''TestState
 
@@ -70,29 +70,29 @@ makeLenses ''TestState
 
 buildInitState :: IO TestState
 buildInitState = do
-    h <- do 
+    h <- do
         terminal <- size
-        case terminal of 
+        case terminal of
             Just a -> return (height a :: Int)
             Nothing -> return 15
-    
+
     cur <- getCurrentDirectory
     contents <- getDirectoryContents cur
-    contents' <- forM contents $ \fp -> do 
+    contents' <- forM contents $ \fp -> do
         e <- doesFileExist fp
         pure $
             if e
                 then File fp
                 else Directory fp
-    case NE.nonEmpty contents' of 
+    case NE.nonEmpty contents' of
         Nothing -> die "There are no contents"
         Just ne -> pure TestState { _testStatePaths = makeNonEmptyCursor ne
                                   , _stateCursor = makeTextFieldCursor ""
                                   , _searchingState = False
                                   , _inputString = ""
                                   , _windowH = h}
-                                    
-    
+
+
 
 
 
@@ -103,8 +103,8 @@ drawSearch st flg = if not flg
     where
         e1 = selectedTextFieldCursorWidget ResourceName  (st^.stateCursor)
 
-            
-             
+
+
 
 
 -- drawResult :: TestState -> Widget ResourceName
@@ -119,18 +119,44 @@ firstN' 0 xs = xs
 firstN' _ [] = []
 firstN' n (x:xs) = x: firstN' (n-1) xs
 
-padString c n xs 
+padString c n xs
     | n <= length xs = xs
     | otherwise      = padString c n (xs ++ [c])
 
+drawPassData :: [PassData] -> Widget ResourceName
+drawPassData  [] = emptyWidget
+drawPassData  (item:items) =  border (padRight Max (str ("Name:    " ++ website) <=> str ("Account: " ++ username))) <=> drawPassData items
+    where
+        website = sel1 item
+        username = sel2 item
+
+drawFocusPassData :: PassData -> Widget ResourceName
+drawFocusPassData item = padRight (Pad 5) (padBottom (Pad 1) (str ("Name: " ++ website)) <=> padBottom (Pad 1) (str ("Account: " ++ username)) <=> str ("Password: " ++ password))
+    where
+        website = sel1 item
+        username = sel2 item
+        password = sel3 item
+
+drawManual :: Int -> Widget ResourceName
+drawManual 0 = str "search"
+drawManual 1 = str "password"
+drawManual _ = str "other"
 
 --ts^.windowH-1
 drawTest :: TestState -> [Widget ResourceName]
-drawTest ts = 
+drawTest ts =
     let nec = ts^.testStatePaths
-        in  [   hCenter $ border $ 
+        in  [   box
+            ]
+    where
+        nec = ts^.testStatePaths
+        fileLen nec = length (nonEmptyCursorPrev nec) + length (nonEmptyCursorNext nec) + 1
+        prevFile nec = take (ts^.windowH-3) $ (nonEmptyCursorPrev nec)
+        flg = ts^.searchingState
+        sample = [("google", "asdalkj", "asd"), ("apple", "123das", "sad")]
+        ori = hCenter $ border $
                 (
-                hCenter $ 
+                hCenter $
                 padBottom (Pad ((ts^.windowH-2) - (fileLen nec)))(
                 vBox $ concat
                     [  map (drawPath False) $ reverse $ (prevFile nec)--take 3 $ (nonEmptyCursorPrev nec)
@@ -140,41 +166,41 @@ drawTest ts =
                 <+> (drawSearch ts flg)
                 <+> ((hCenter (padLeftRight 7 (str "Result")))
                 <=> (hCenter (padLeftRight (div (20- length (ts^.inputString)) 2) (str (ts^.inputString)))))
-            ]
-    where 
-        fileLen nec = length (nonEmptyCursorPrev nec) + length (nonEmptyCursorNext nec) + 1
-        prevFile nec = take (ts^.windowH-3) $ (nonEmptyCursorPrev nec)
-        flg = ts^.searchingState
+
+        box = borderWithLabel (str "KeyChain")
+         $ border (drawSearch ts flg) <=> drawPassData sample
+         <+> vBorder
+         <+> ((center (drawFocusPassData (head sample)))  <=> hBorder <=> (center  (drawManual 0)))
 
 
 
 drawPath :: Bool -> POC -> Widget n
-drawPath b poc = 
+drawPath b poc =
         (if b
             then forceAttr "selected"
-            else id) $ 
+            else id) $
         case poc of
             File fp -> padRight (Pad (30 - length fp)) $ withAttr "file" $ str fp
             Directory fp -> padRight (Pad (30 - length fp)) $ withAttr "directory" $ str fp
 
 
 handleEvent :: TestState -> BrickEvent n e -> EventM n (Next TestState)
-handleEvent st ev = 
+handleEvent st ev =
     case ev of
         VtyEvent (EvKey k ms) -> handleKeyPress st ev (k,ms)
         _ -> continue st
 
 handleKeyPress :: TestState -> BrickEvent n e -> (Key, [Modifier]) -> EventM n (Next TestState)
-handleKeyPress st ev (key, ms) = 
+handleKeyPress st ev (key, ms) =
     if st ^. searchingState
         then handleSearch st ev
         else handleNormal st ev
-    
-    where 
-        handleNormal st ev = 
+
+    where
+        handleNormal st ev =
             case ev of
                 VtyEvent vtye ->
-                    case vtye of 
+                    case vtye of
                         EvKey (KChar 'q') [] -> halt st
                         EvKey KDown [] -> do
                             let nec = st ^. testStatePaths
@@ -188,7 +214,7 @@ handleKeyPress st ev (key, ms) =
                                 Just nec' -> continue $ st {_testStatePaths = nec'}
                         EvKey KEnter [] -> do
                             let fp = nonEmptyCursorCurrent $ st ^. testStatePaths
-                            case fp of 
+                            case fp of
                                 File _ -> continue st
                                 Directory fp -> do
                                     liftIO $ setCurrentDirectory fp
@@ -199,15 +225,15 @@ handleKeyPress st ev (key, ms) =
                             continue st'
                         _ -> continue st
                 _ -> continue st
-        handleSearch st ev =  
-            let mDo :: (TextFieldCursor -> Maybe TextFieldCursor) -> EventM n (Next TestState)  
+        handleSearch st ev =
+            let mDo :: (TextFieldCursor -> Maybe TextFieldCursor) -> EventM n (Next TestState)
                 mDo func = do
                     let tfc = st^.stateCursor
                     let tfc' = fromMaybe tfc $ func tfc
                     let st' = st & stateCursor .~ tfc'
                     continue st'
-            in case key of 
-                KLeft  -> do 
+            in case key of
+                KLeft  -> do
                             let st' = st & searchingState .~ False  & stateCursor .~ (makeTextFieldCursor "")
                             continue st'
                 KEnter -> do
@@ -248,16 +274,16 @@ handleKeyPress st ev (key, ms) =
 --         _ -> continue s
 
 mainApp :: App TestState e ResourceName
-mainApp = 
+mainApp =
     App
         {   appDraw = drawTest
         ,   appChooseCursor = showFirstCursor
         ,   appHandleEvent = handleEvent
         ,   appStartEvent = pure
-        ,   appAttrMap = 
-                const $ 
-                attrMap 
-                    defAttr 
+        ,   appAttrMap =
+                const $
+                attrMap
+                    defAttr
                     [ ("selected", fg red)
                     , ("file", fg blue)
                     , ("directory", fg yellow)
@@ -265,7 +291,7 @@ mainApp =
         }
 
 test :: IO()
-test = do 
+test = do
     initState <- buildInitState
     endState <- defaultMain mainApp initState
     return ()
