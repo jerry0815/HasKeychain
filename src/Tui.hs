@@ -166,12 +166,9 @@ drawTypingName st = vCenter $ padLeft (Pad 28) content <=> hCenter help
         e1 = selectedTextFieldCursorWidget ResourceName  (st^.stateCursor)
         content =  str "This password is for: " <+> e1
         help = padTop (Pad 1) $ borderWithLabel (str "Help") body
-        body = str $ "- Name is free-form text\n" <>
-                     "- Age must be an integer (try entering an\n" <>
-                     "  invalid age!)\n" <>
-                     "- Handedness selects from a list of options\n" <>
-                     "- The last option is a checkbox\n" <>
-                     "- Enter/Esc quit, mouse interacts with fields"
+        body = str $ "- Name cannot be empty                         \n" <>
+                     "- Enter to proceed\n" <>
+                     "- Esc to quit\n"
 
 drawTypingAccount :: TuiState -> Widget ResourceName
 drawTypingAccount st = vCenter $ padLeft (Pad 28) content <=> hCenter help
@@ -179,12 +176,9 @@ drawTypingAccount st = vCenter $ padLeft (Pad 28) content <=> hCenter help
         e1 = selectedTextFieldCursorWidget ResourceName  (st^.stateCursor)
         content = str "Account: " <+> e1
         help = padTop (Pad 1) $ borderWithLabel (str "Help") body
-        body = str $ "- Name is free-form text\n" <>
-                     "- Age must be an integer (try entering an\n" <>
-                     "  invalid age!)\n" <>
-                     "- Handedness selects from a list of options\n" <>
-                     "- The last option is a checkbox\n" <>
-                     "- Enter/Esc quit, mouse interacts with fields"
+        body = str $ "- Name cannot be empty                         \n" <>
+                     "- Enter to proceed\n" <>
+                     "- Esc to quit\n"
 
 
 drawFocusPassData :: T.Text -> T.Text -> T.Text  -> Widget ResourceName
@@ -350,8 +344,11 @@ handleKeyPress st ev (key, ms) = resultEvent
                             let st' = st & stateCursor .~ tfc'
                             continue st' 
                         KEnter -> do
-                            let st' = st & typingName .~ (rebuildTextFieldCursor (st ^. stateCursor)) & stateCursor .~ (makeTextFieldCursor "") & eventState .~ 3
-                            continue st'
+                            case unpack (rebuildTextFieldCursor (st ^. stateCursor)) of
+                                "" -> continue st
+                                _ ->  do
+                                    let st' = st & typingName .~ (rebuildTextFieldCursor (st ^. stateCursor)) & stateCursor .~ (makeTextFieldCursor "") & eventState .~ 3
+                                    continue st'
                         (KChar c) -> do
                             let tfc = st^.stateCursor
                             let tfc' = fromMaybe tfc $ (textFieldCursorInsertChar c . Just) tfc
@@ -371,13 +368,16 @@ handleKeyPress st ev (key, ms) = resultEvent
                             let st' = st & stateCursor .~ tfc'
                             continue st' 
                         KEnter -> do
-                            let st' = st & typingAccount .~ (rebuildTextFieldCursor (st ^. stateCursor)) & stateCursor .~ (makeTextFieldCursor "") & eventState .~ 0
-                            liftIO $ P.storeLocal (unpack (st'^.typingName)) (unpack (st'^.typingAccount))
-                            contents <- liftIO $ P.searchPassWord (st'^. inputString)
-                            contents' <- forM contents $ \fp -> pure PassData { _name = T.pack (sel1 fp), _account = T.pack (sel2 fp), _password = T.pack (sel3 fp)}
-                            case NE.nonEmpty contents' of
-                                Nothing -> continue st'
-                                Just ne -> continue (st' & tuiStatePaths .~ (makeNonEmptyCursor ne))
+                            case unpack (rebuildTextFieldCursor (st ^. stateCursor)) of
+                                "" -> continue st
+                                _ ->  do
+                                    let st' = st & typingAccount .~ (rebuildTextFieldCursor (st ^. stateCursor)) & stateCursor .~ (makeTextFieldCursor "") & eventState .~ 0
+                                    liftIO $ P.storeLocal (unpack (st'^.typingName)) (unpack (st'^.typingAccount))
+                                    contents <- liftIO $ P.searchPassWord (st'^. inputString)
+                                    contents' <- forM contents $ \fp -> pure PassData { _name = T.pack (sel1 fp), _account = T.pack (sel2 fp), _password = T.pack (sel3 fp)}
+                                    case NE.nonEmpty contents' of
+                                        Nothing -> continue st'
+                                        Just ne -> continue (st' & tuiStatePaths .~ (makeNonEmptyCursor ne))
                         (KChar c) -> do
                             let tfc = st^.stateCursor
                             let tfc' = fromMaybe tfc $ (textFieldCursorInsertChar c . Just) tfc
