@@ -41,13 +41,6 @@ import Control.Lens ( (^.), (%=), (&), (.~), makeLenses, Zoom(zoom) )
 import qualified Password as P
 import qualified Data.Text as T
 
--- ui :: Widget ()
--- ui =
---     joinBorders $
---     withBorderStyle unicode $
---     borderWithLabel (str "Hello!") $
---     (center (str "Left") <+> vBorder <+> center (str "Right"))
-
 
 
 
@@ -71,14 +64,14 @@ makeLenses ''PassData
 
 
 
-data TuiState = TuiState {  _tuiStatePaths :: !(NonEmptyCursor PassData)
-                            , _stateCursor :: !TextFieldCursor
-                            , _eventState :: !Int -- 0 browse 1 watch 2 search 3 insert
-                            , _focusItem :: !(Maybe PassData)
-                            , _inputString :: String
-                            , _typingName :: T.Text
-                            , _typingAccount :: T.Text
-                            , _windowH :: !Int
+data TuiState = TuiState {  _tuiStatePaths :: !(NonEmptyCursor PassData) -- cursor for each password
+                            , _stateCursor :: !TextFieldCursor -- cursor for searching bar
+                            , _eventState :: !Int -- 0 normal 1 search 2 insertName 3 insertAccount 4 browse
+                            , _focusItem :: !(Maybe PassData) -- the password item user browsing
+                            , _inputString :: String -- string searching bar input
+                            , _typingName :: T.Text -- website name of new insert record
+                            , _typingAccount :: T.Text -- account of new insert record
+                            , _windowH :: !Int -- the height of terminal
                             } 
 
 makeLenses ''TuiState
@@ -92,11 +85,6 @@ buildInitState = do
         case terminal of 
             Just a -> return (height a :: Int)
             Nothing -> return 15
-    -- w <- do 
-    --     terminal <- size
-    --     case terminal of 
-    --         Just a -> return (width a :: Int)
-    --         Nothing -> return 237
     contents <- P.searchPassWord ""
     contents' <- forM contents $ \fp -> pure PassData { _name = T.pack (sel1 fp), _account = T.pack (sel2 fp), _password = T.pack (sel3 fp)}
     case NE.nonEmpty contents' of 
@@ -113,7 +101,7 @@ buildInitState = do
                                     
     
 
-
+-- drawing help cmd
 drawHelpCmd :: TuiState -> Widget ResourceName
 drawHelpCmd st = 
     let cmdState = st ^. eventState
@@ -127,7 +115,6 @@ drawHelpCmd st =
                     , hCenter $ txt "Enter: browse password of website"
                     ])
             1 -> hBorder <=> center (vBox [
-                    -- hCenter $ txt "/: search, Esc: cancel search"
                     hCenter $ txt "Enter: search password"
                     , hCenter $ txt "Esc: quit searching"])
             4 -> hBorder <=> center (vBox [
@@ -142,15 +129,8 @@ drawHelpCmd st =
                     , hCenter $ txt "Enter: browse password of website"
                     ])
             
-            -- hBorder <=> center (vBox [
-            --         hCenter $ txt "Up/Down: select"
-            --         , hCenter $ txt "Esc: quit creating password"
-            --         , hCenter $ txt "i: create password"
-            --         , hCenter $ txt "space: generate password"
-            --         , hCenter $ txt "Enter: Next step"
-            --         ])
                     
-
+-- drawing the searching bar
 drawSearch :: TuiState -> Bool -> Widget ResourceName
 drawSearch st flg = if not flg
                         then hLimit 50 $ border (padRight Max (str "Search: " <+> e1))
@@ -160,7 +140,7 @@ drawSearch st flg = if not flg
         input = unpack (rebuildTextFieldCursor (st ^. stateCursor))
 
             
-
+-- drawing insert name page
 drawTypingName :: TuiState -> Widget ResourceName
 drawTypingName st = vCenter $ padLeft (Pad 28) content <=> hCenter help
     where
@@ -171,6 +151,7 @@ drawTypingName st = vCenter $ padLeft (Pad 28) content <=> hCenter help
                      "- Enter to proceed\n" <>
                      "- Esc to quit\n"
 
+-- drawing insert account page
 drawTypingAccount :: TuiState -> Widget ResourceName
 drawTypingAccount st = vCenter $ padLeft (Pad 28) content <=> hCenter help
     where
@@ -181,7 +162,7 @@ drawTypingAccount st = vCenter $ padLeft (Pad 28) content <=> hCenter help
                      "- Enter to proceed\n" <>
                      "- Esc to quit\n"
 
-
+-- drawing focus password user browse
 drawFocusPassData :: T.Text -> T.Text -> T.Text  -> Widget ResourceName
 drawFocusPassData website username pass =   padLeft (Pad 12) (padBottom (Pad 1) ((str "Name: " <+> txt website)) 
                                             <=> padBottom (Pad 1) ((str "Account: " <+> txt username)) 
@@ -189,18 +170,15 @@ drawFocusPassData website username pass =   padLeft (Pad 12) (padBottom (Pad 1) 
 
 
 
-lastN' n xs = L.foldl' (const . drop 1) xs (drop n xs)
 
-firstN' 0 xs = xs
-firstN' _ [] = []
-firstN' n (x:xs) = x: firstN' (n-1) xs
+
 
 padString c n xs 
     | n <= length xs = xs
     | otherwise      = padString c n (xs ++ [c])
 
 
---ts^.windowH-1
+-- drawing overall ui
 drawTui :: TuiState -> [Widget ResourceName]
 drawTui ts = drawResult
         where 
@@ -219,17 +197,11 @@ drawTui ts = drawResult
                             [  map (drawPath False) $ reverse $ (prevFile nec)
                             , [drawPath (ts^.eventState == 0) $ nonEmptyCursorCurrent nec]
                             , map (drawPath False) $ nonEmptyCursorNext nec])
-        -- let nec = ts^.tuiStatePaths
-    --     in  [   borderWithLabel (str "KeyChain") $
-    --             border (drawSearch ts flg) <=> pathData nec
-    --             <+> vBorder
-    --             <+> ((center focusData) <=> hBorder <=> (center  (drawHelpCmd ts)))
-    --         ]
-    -- where 
+
 
         
 
-
+-- drawing password list
 drawPath :: Bool -> PassData -> Widget n
 drawPath b poc = 
         (if b
@@ -241,9 +213,7 @@ drawPath b poc =
             curname = poc^.name
             curaccount = poc^.account
 
-        -- border (
-        -- (padRight (Pad (15 - length web)) $ withAttr "file" $ (str web))
-        -- <=> (padRight (Pad (15 - length user)) $ withAttr "file" $ (str user)))
+
 
 
 handleEvent :: TuiState -> BrickEvent n e -> EventM n (Next TuiState)
@@ -252,15 +222,16 @@ handleEvent st ev =
         VtyEvent (EvKey k ms) -> handleKeyPress st ev (k,ms)
         _ -> continue st
 
+-- handle each key press
 handleKeyPress :: TuiState -> BrickEvent n e -> (Key, [Modifier]) -> EventM n (Next TuiState)
 handleKeyPress st ev (key, ms) = resultEvent
     where 
         resultEvent = case st ^. eventState of
-                            0 -> handleNormal st ev
-                            1 -> handleSearch st ev
-                            2 -> handleInsertName st ev
-                            3 -> handleInsertAccount st ev
-                            4 -> handleBrowse st ev
+                            0 -> handleNormal st ev -- normal looking state
+                            1 -> handleSearch st ev -- searching state
+                            2 -> handleInsertName st ev -- inserting name state
+                            3 -> handleInsertAccount st ev -- inserting account state
+                            4 -> handleBrowse st ev -- browsing certain password state
                             _ -> continue st
         handleNormal st ev = 
             case ev of
@@ -411,10 +382,9 @@ mainApp =
 
 tui :: IO()
 tui = do 
-    -- putStr "123"
+
     initState <- buildInitState
     endState <- defaultMain mainApp initState
     return ()
-    --print endState
 
 
